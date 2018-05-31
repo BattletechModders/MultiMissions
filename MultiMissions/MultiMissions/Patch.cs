@@ -17,12 +17,19 @@ namespace MultiMissions {
     public static class AAR_SalvageScreen_OnCompleted_Patch {
         static void Postfix(AAR_SalvageScreen __instance) {
             try {
-                Logger.LogLine("CALLED");
-                Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance,"contract");
-                Contract newcon = GetNewContract(__instance.Sim, c);
-                newcon.Override.disableNegotations = true;
-                newcon.Override.disableCancelButton = true;
-                __instance.Sim.ForceTakeContract(newcon, false);
+                if (Fields.missionNumber < 2) {
+                    Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
+                    Contract newcon = GetNewContract(__instance.Sim, c);
+                    newcon.Override.disableNegotations = true;
+                    newcon.Override.disableCancelButton = true;
+                    ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue",new object[] { 0 });
+                    newcon.Override.negotiatedSalary = 0f;
+                    newcon.Override.negotiatedSalvage = 1f;
+                    __instance.Sim.ForceTakeContract(newcon, false);
+                    Fields.missionNumber++;
+                } else {
+                    Fields.missionNumber = 1;
+                }
             }
             catch (Exception e) {
                 Logger.LogError(e);

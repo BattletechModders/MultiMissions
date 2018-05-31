@@ -5,7 +5,8 @@ namespace MultiMissions {
     public class Settings {
     }
 
-    public class Fields {
+    public static class Fields {
+        public static int missionNumber = 1;
     }
 
     public struct PotentialContract {
