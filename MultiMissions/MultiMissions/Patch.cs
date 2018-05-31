@@ -9,33 +9,49 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using UnityEngine;
 
 namespace MultiMissions {
 
-    [HarmonyPatch(typeof(AAR_SalvageScreen), "OnCompleted")]
-    public static class AAR_SalvageScreen_OnCompleted_Patch {
-        static void Postfix(AAR_SalvageScreen __instance) {
+    [HarmonyPatch(typeof(SGContractsListItem), "Init")]
+    public static class SGContractsListItem_Init_Patch {
+        static void Postfix(SGContractsListItem __instance, Contract contract) {
             try {
-                if (Fields.missionNumber < 2) {
-                    Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
-                    Contract newcon = GetNewContract(__instance.Sim, c);
-                    newcon.Override.disableNegotations = true;
-                    newcon.Override.disableCancelButton = true;
-                    ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue",new object[] { 0 });
-                    newcon.Override.negotiatedSalary = 0f;
-                    newcon.Override.negotiatedSalvage = 1f;
-                    __instance.Sim.ForceTakeContract(newcon, false);
-                    Fields.missionNumber++;
-                } else {
-                    Fields.missionNumber = 1;
-                }
+                Settings settings = Helper.LoadSettings();
+                TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
+                ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] {contractName , contract.Override.contractName + " ("+ settings.numberOfMissions + " Missions)" });
             }
             catch (Exception e) {
                 Logger.LogError(e);
             }
         }
 
+
+        [HarmonyPatch(typeof(AAR_SalvageScreen), "OnCompleted")]
+        public static class AAR_SalvageScreen_OnCompleted_Patch {
+            static void Postfix(AAR_SalvageScreen __instance) {
+                try {
+                    if (Fields.missionNumber < 2) {
+                        Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
+                        Contract newcon = GetNewContract(__instance.Sim, c);
+                        newcon.Override.disableNegotations = true;
+                        newcon.Override.disableCancelButton = true;
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { 0 });
+                        newcon.Override.negotiatedSalary = 0f;
+                        newcon.Override.negotiatedSalvage = 1f;
+                        __instance.Sim.ForceTakeContract(newcon, false);
+                        Fields.missionNumber++;
+                    }
+                    else {
+                        Fields.missionNumber = 1;
+                    }
+                }
+                catch (Exception e) {
+                    Logger.LogError(e);
+                }
+            }
+        }
         private static Contract GetNewContract(SimGameState Sim, Contract oldcontract) {
             ContractDifficulty minDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });
             ContractDifficulty maxDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });

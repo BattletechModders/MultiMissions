@@ -3,6 +3,7 @@ using BattleTech.Framework;
 
 namespace MultiMissions {
     public class Settings {
+        public int numberOfMissions = 2;
     }
 
     public static class Fields {

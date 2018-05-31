@@ -2,6 +2,8 @@
 using Newtonsoft.Json;
 using System;
 using System.IO;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace MultiMissions {
     public class Helper {
@@ -30,6 +32,41 @@ namespace MultiMissions {
             salvageDef.Description = description2;
             salvageDef.RewardID = contract.GenerateRewardUID();
             return salvageDef;
+        }
+
+        public static string GetGameObjectPath(GameObject obj) {
+            string path = "/" + obj.name;
+            while (obj.transform.parent != null) {
+                obj = obj.transform.parent.gameObject;
+                path = "/" + obj.name + path;
+            }
+            return path;
+        }
+
+        public static void RecursivelyPrintGameObject(GameObject gameObject, int indent = 0) {
+            Logger.LogLine($"{new string(' ', indent)}{GetGameObjectPath(gameObject)}");
+
+            var components = gameObject.GetComponents(typeof(Component));
+            foreach (var component in components) {
+                Logger.LogLine($"{new string(' ', indent)}  -> {component.GetType()}");
+            }
+
+            Logger.LogLine("");
+
+            foreach (Transform tChild in gameObject.transform) {
+                RecursivelyPrintGameObject(tChild.gameObject, indent + 2);
+
+            }
+        }
+
+        public static void PrintAllObjectsInCurrentScene() {
+            var scene = SceneManager.GetActiveScene();
+            var rootObjects = scene.GetRootGameObjects();
+
+            foreach (var rootObject in rootObjects) {
+                RecursivelyPrintGameObject(rootObject);
+                Logger.LogLine("");
+            }
         }
     }
 }
