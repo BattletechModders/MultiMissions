@@ -3,43 +3,88 @@ using BattleTech.Data;
 using BattleTech.Framework;
 using BattleTech.UI;
 using Harmony;
-using HBS;
 using HBS.Collections;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
 
 namespace MultiMissions {
+    [HarmonyPatch(typeof(Contract), "SetNegotiatedValues")]
+    public static class Contract_SetNegotiatedValues_Patch {
+
+        static void Postfix(Contract __instance) {
+            try {
+                if (Fields.missionNumber == 1) {
+                    Settings settings = Helper.LoadSettings();
+                    Fields.originalInitValue = Mathf.RoundToInt(__instance.InitialContractValue * settings.numberOfMissions * (1 + (settings.numberOfMissions * settings.bonusFactorPerExtraMission)));
+                    Fields.contractValue = Mathf.RoundToInt(Fields.originalInitValue * __instance.PercentageContractValue);
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
+    [HarmonyPatch(typeof(Contract), "CompleteContract")]
+    public static class Contract_CompleteContract_Patch {
+
+        static void Prefix(Contract __instance) {
+            try {
+                Settings settings = Helper.LoadSettings();
+                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / settings.numberOfMissions) });
+                ReflectionHelper.InvokePrivateMethode(__instance, "set_PercentageContractValue", new object[] { 1f });
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(SGContractsListItem), "Init")]
     public static class SGContractsListItem_Init_Patch {
-        static void Postfix(SGContractsListItem __instance, Contract contract) {
+        static void Prefix(SGContractsListItem __instance, Contract contract) {
             try {
-                Settings settings = Helper.LoadSettings();
-                TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
-                ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] {contractName , contract.Override.contractName + " ("+ settings.numberOfMissions + " Missions)" });
+
+
+                if (!Fields.alreadyRaised.Contains(contract)) {
+                    Settings settings = Helper.LoadSettings();
+                    ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
+                        Mathf.RoundToInt(contract.InitialContractValue * settings.numberOfMissions * (1 + (settings.numberOfMissions * settings.bonusFactorPerExtraMission)))
+                    });
+                    Fields.alreadyRaised.Add(contract);
+                }
             }
             catch (Exception e) {
                 Logger.LogError(e);
             }
         }
 
+        static void Postfix(SGContractsListItem __instance, Contract contract) {
+            try {
+                Settings settings = Helper.LoadSettings();
+                TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
+                ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + settings.numberOfMissions + " Missions)" });
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
 
         [HarmonyPatch(typeof(AAR_SalvageScreen), "OnCompleted")]
         public static class AAR_SalvageScreen_OnCompleted_Patch {
             static void Postfix(AAR_SalvageScreen __instance) {
                 try {
-                    if (Fields.missionNumber < 2) {
+                    Settings settings = Helper.LoadSettings();
+                    if (Fields.missionNumber < settings.numberOfMissions) {
                         Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
                         Contract newcon = GetNewContract(__instance.Sim, c);
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { 0 });
-                        newcon.Override.negotiatedSalary = 0f;
-                        newcon.Override.negotiatedSalvage = 1f;
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / settings.numberOfMissions) });
+                        newcon.Override.negotiatedSalary = c.PercentageContractValue;
+                        newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
                         __instance.Sim.ForceTakeContract(newcon, false);
                         Fields.missionNumber++;
                     }
@@ -66,7 +111,7 @@ namespace MultiMissions {
                 Dictionary<ContractType, List<ContractOverride>> potentialOverrides = new Dictionary<ContractType, List<ContractOverride>>();
                 ContractType[] singlePlayerTypes = (ContractType[])ReflectionHelper.GetPrivateStaticField(typeof(SimGameState), "singlePlayerTypes");
                 using (MetadataDatabase metadataDatabase = new MetadataDatabase()) {
-                    foreach (Contract_MDD contract_MDD in metadataDatabase.GetContractsByDifficultyRange(oldcontract.Difficulty-1, oldcontract.Difficulty+1)) {
+                    foreach (Contract_MDD contract_MDD in metadataDatabase.GetContractsByDifficultyRange(oldcontract.Difficulty - 1, oldcontract.Difficulty + 1)) {
                         ContractType contractType = contract_MDD.ContractTypeEntry.ContractType;
                         if (singlePlayerTypes.Contains(contractType)) {
                             if (!contractTypes.Contains(contractType)) {
@@ -123,7 +168,7 @@ namespace MultiMissions {
                     foreach (Faction faction3 in validTargets.Keys) {
                         Logger.LogLine(string.Format("--- Targets for {0}: {1}", faction3, validTargets[faction3].Count));
                     }
-                    
+
                     break;
                 }
 
@@ -306,7 +351,7 @@ namespace MultiMissions {
             }
             return contractList[0];
         }
-        
 
-    }   
+
+    }
 }
