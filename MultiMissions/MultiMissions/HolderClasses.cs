@@ -12,7 +12,7 @@ namespace MultiMissions {
         public static int missionNumber = 1;
         public static int contractValue = 0;
         public static int originalInitValue = 0;
-        public static List<Contract> alreadyRaised = new List<Contract>();
+        public static Dictionary<Contract, int> alreadyRaised = new Dictionary<Contract, int>();
     }
 
     public struct PotentialContract {

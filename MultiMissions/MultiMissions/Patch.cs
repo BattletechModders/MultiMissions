@@ -7,18 +7,36 @@ using HBS.Collections;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 
 namespace MultiMissions {
+
+    [HarmonyPatch(typeof(StarSystem), "ResetContracts")]
+    public static class StarSystem_ResetContracts_Patch {
+
+        static void Prefix(StarSystem __instance) {
+            try {
+                foreach (Contract con in __instance.SystemContracts) {
+                    if (Fields.alreadyRaised.ContainsKey(con)) {
+                        Fields.alreadyRaised.Remove(con);
+                    }
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(Contract), "SetNegotiatedValues")]
     public static class Contract_SetNegotiatedValues_Patch {
 
         static void Postfix(Contract __instance) {
             try {
                 if (Fields.missionNumber == 1) {
-                    Settings settings = Helper.LoadSettings();
-                    Fields.originalInitValue = Mathf.RoundToInt(__instance.InitialContractValue * settings.numberOfMissions * (1 + (settings.numberOfMissions * settings.bonusFactorPerExtraMission)));
+                    Fields.originalInitValue = Mathf.RoundToInt(__instance.InitialContractValue);
                     Fields.contractValue = Mathf.RoundToInt(Fields.originalInitValue * __instance.PercentageContractValue);
                 }
             }
@@ -32,8 +50,11 @@ namespace MultiMissions {
 
         static void Prefix(Contract __instance) {
             try {
+                if (Fields.alreadyRaised.ContainsKey(__instance)) {
+                    Fields.alreadyRaised.Remove(__instance);
+                }
                 Settings settings = Helper.LoadSettings();
-                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / settings.numberOfMissions) });
+                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / Fields.alreadyRaised[__instance]) });
                 ReflectionHelper.InvokePrivateMethode(__instance, "set_PercentageContractValue", new object[] { 1f });
             }
             catch (Exception e) {
@@ -46,14 +67,15 @@ namespace MultiMissions {
     public static class SGContractsListItem_Init_Patch {
         static void Prefix(SGContractsListItem __instance, Contract contract) {
             try {
-
-
-                if (!Fields.alreadyRaised.Contains(contract)) {
+                if (!Fields.alreadyRaised.ContainsKey(contract)) {
                     Settings settings = Helper.LoadSettings();
+                    Thread.Sleep(20);
+                    System.Random rnd = new System.Random();
+                    int randMissions = rnd.Next(1, settings.numberOfMissions + 1);
                     ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
-                        Mathf.RoundToInt(contract.InitialContractValue * settings.numberOfMissions * (1 + (settings.numberOfMissions * settings.bonusFactorPerExtraMission)))
+                        Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + (randMissions-1 * settings.bonusFactorPerExtraMission)))
                     });
-                    Fields.alreadyRaised.Add(contract);
+                    Fields.alreadyRaised.Add(contract, randMissions);
                 }
             }
             catch (Exception e) {
@@ -63,9 +85,10 @@ namespace MultiMissions {
 
         static void Postfix(SGContractsListItem __instance, Contract contract) {
             try {
-                Settings settings = Helper.LoadSettings();
-                TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
-                ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + settings.numberOfMissions + " Missions)" });
+                if (Fields.alreadyRaised[contract] != 1) {
+                    TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
+                    ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + Fields.alreadyRaised[contract] + " Missions)" });
+                }
             }
             catch (Exception e) {
                 Logger.LogError(e);
@@ -77,15 +100,16 @@ namespace MultiMissions {
             static void Postfix(AAR_SalvageScreen __instance) {
                 try {
                     Settings settings = Helper.LoadSettings();
-                    if (Fields.missionNumber < settings.numberOfMissions) {
-                        Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
+                    Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
+                    if (Fields.missionNumber < Fields.alreadyRaised[c]) {
                         Contract newcon = GetNewContract(__instance.Sim, c);
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / settings.numberOfMissions) });
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / Fields.alreadyRaised[c]) });
                         newcon.Override.negotiatedSalary = c.PercentageContractValue;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
                         __instance.Sim.ForceTakeContract(newcon, false);
+                        Fields.alreadyRaised.Add(newcon, Fields.alreadyRaised[c]);
                         Fields.missionNumber++;
                     }
                     else {
