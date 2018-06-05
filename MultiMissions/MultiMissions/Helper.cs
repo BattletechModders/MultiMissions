@@ -1,13 +1,28 @@
 ﻿using BattleTech;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace MultiMissions {
-    public class Helper {
 
+    public class SaveFields {
+        public int missionNumber;
+        public int contractValue;
+        public int originalInitValue;
+        public Dictionary<string, int> alreadyRaised = new Dictionary<string, int>();
+
+        public SaveFields(int missionNumber, int contractValue, int originalInitValue, Dictionary<string, int> alreadyRaised) {
+            this.missionNumber = missionNumber;
+            this.contractValue = contractValue;
+            this.originalInitValue = originalInitValue;
+            this.alreadyRaised = alreadyRaised;
+        }
+    }
+
+    public class Helper {
         public static Settings LoadSettings() {
             try {
                 using (StreamReader r = new StreamReader("mods/MultiMissions/settings.json")) {
@@ -21,51 +36,39 @@ namespace MultiMissions {
             }
         }
 
-        public static SalvageDef CreateMechPart(Contract contract, SimGameConstants sc, MechDef m) {
-            SalvageDef salvageDef = new SalvageDef();
-            salvageDef.Type = SalvageDef.SalvageType.MECH_PART;
-            salvageDef.ComponentType = ComponentType.MechPart;
-            salvageDef.Count = 1;
-            salvageDef.Weight = sc.Salvage.DefaultMechPartWeight;
-            DescriptionDef description = m.Description;
-            DescriptionDef description2 = new DescriptionDef(description.Id, string.Format("{0} {1}", description.Name, sc.Story.DefaultMechPartName), description.Details, description.Icon, description.Cost, description.Rarity, description.Purchasable, description.Manufacturer, description.Model, description.UIName);
-            salvageDef.Description = description2;
-            salvageDef.RewardID = contract.GenerateRewardUID();
-            return salvageDef;
-        }
-
-        public static string GetGameObjectPath(GameObject obj) {
-            string path = "/" + obj.name;
-            while (obj.transform.parent != null) {
-                obj = obj.transform.parent.gameObject;
-                path = "/" + obj.name + path;
+        public static void SaveState(string instanceGUID, DateTime saveTime) {
+            try {
+                int unixTimestamp = (int)(saveTime.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                string filePath = "mods/MultiMissions/saves/" + instanceGUID + "-" + unixTimestamp + ".json";
+                (new FileInfo(filePath)).Directory.Create();
+                using (StreamWriter writer = new StreamWriter(filePath, true)) {
+                    SaveFields fields = new SaveFields(Fields.missionNumber, Fields.contractValue, Fields.originalInitValue, Fields.alreadyRaised);
+                    string json = JsonConvert.SerializeObject(fields);
+                    writer.Write(json);
+                }
             }
-            return path;
-        }
-
-        public static void RecursivelyPrintGameObject(GameObject gameObject, int indent = 0) {
-            Logger.LogLine($"{new string(' ', indent)}{GetGameObjectPath(gameObject)}");
-
-            var components = gameObject.GetComponents(typeof(Component));
-            foreach (var component in components) {
-                Logger.LogLine($"{new string(' ', indent)}  -> {component.GetType()}");
-            }
-
-            Logger.LogLine("");
-
-            foreach (Transform tChild in gameObject.transform) {
-                RecursivelyPrintGameObject(tChild.gameObject, indent + 2);
-
+            catch (Exception ex) {
+                Logger.LogError(ex);
             }
         }
 
-        public static void PrintAllObjectsInCurrentScene() {
-            var scene = SceneManager.GetActiveScene();
-            var rootObjects = scene.GetRootGameObjects();
-
-            foreach (var rootObject in rootObjects) {
-                RecursivelyPrintGameObject(rootObject);
-                Logger.LogLine("");
+        public static void LoadState(string instanceGUID, DateTime saveTime) {
+            try {
+                int unixTimestamp = (int)(saveTime.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                string filePath = "mods/MultiMissions/saves/" + instanceGUID + "-" + unixTimestamp + ".json";
+                if (File.Exists(filePath)) {
+                    using (StreamReader r = new StreamReader(filePath)) {
+                        string json = r.ReadToEnd();
+                        SaveFields save = JsonConvert.DeserializeObject<SaveFields>(json);
+                        Fields.alreadyRaised = save.alreadyRaised;
+                        Fields.contractValue = save.contractValue;
+                        Fields.missionNumber = save.missionNumber;
+                        Fields.originalInitValue = save.originalInitValue;
+                    }
+                }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
             }
         }
     }

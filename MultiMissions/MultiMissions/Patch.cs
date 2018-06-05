@@ -1,6 +1,8 @@
 ﻿using BattleTech;
 using BattleTech.Data;
 using BattleTech.Framework;
+using BattleTech.Save;
+using BattleTech.Save.SaveGameStructure;
 using BattleTech.UI;
 using Harmony;
 using HBS.Collections;
@@ -13,14 +15,29 @@ using UnityEngine;
 
 namespace MultiMissions {
 
+    [HarmonyPatch(typeof(GameInstanceSave))]
+    [HarmonyPatch(new Type[] { typeof(GameInstance), typeof(SaveReason) })]
+    public static class GameInstanceSave_Constructor_Patch {
+        static void Postfix(GameInstanceSave __instance) {
+            Helper.SaveState(__instance.InstanceGUID, __instance.SaveTime);
+        }
+    }
+
+    [HarmonyPatch(typeof(GameInstance), "Load")]
+    public static class GameInstance_Load_Patch {
+        static void Prefix(GameInstanceSave save) {
+            Helper.LoadState(save.InstanceGUID, save.SaveTime);
+        }
+    }
+
     [HarmonyPatch(typeof(StarSystem), "ResetContracts")]
     public static class StarSystem_ResetContracts_Patch {
 
         static void Prefix(StarSystem __instance) {
             try {
                 foreach (Contract con in __instance.SystemContracts) {
-                    if (Fields.alreadyRaised.ContainsKey(con)) {
-                        Fields.alreadyRaised.Remove(con);
+                    if (Fields.alreadyRaised.ContainsKey(con.GUID)) {
+                        Fields.alreadyRaised.Remove(con.GUID);
                     }
                 }
             }
@@ -50,11 +67,7 @@ namespace MultiMissions {
 
         static void Prefix(Contract __instance) {
             try {
-                if (Fields.alreadyRaised.ContainsKey(__instance)) {
-                    Fields.alreadyRaised.Remove(__instance);
-                }
-                Settings settings = Helper.LoadSettings();
-                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / Fields.alreadyRaised[__instance]) });
+                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / Fields.alreadyRaised[__instance.GUID]) });
                 ReflectionHelper.InvokePrivateMethode(__instance, "set_PercentageContractValue", new object[] { 1f });
             }
             catch (Exception e) {
@@ -67,15 +80,18 @@ namespace MultiMissions {
     public static class SGContractsListItem_Init_Patch {
         static void Prefix(SGContractsListItem __instance, Contract contract) {
             try {
-                if (!Fields.alreadyRaised.ContainsKey(contract)) {
+                if (contract.GUID == null) {
+                    contract.SetGuid(Guid.NewGuid().ToString());
+                }
+                if (!Fields.alreadyRaised.ContainsKey(contract.GUID)) {
                     Settings settings = Helper.LoadSettings();
                     Thread.Sleep(20);
                     System.Random rnd = new System.Random();
-                    int randMissions = rnd.Next(1, settings.numberOfMissions + 1);
+                    int randMissions = rnd.Next(1, settings.maxNumberOfMissions + 1);
                     ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
-                        Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + (randMissions-1 * settings.bonusFactorPerExtraMission)))
+                        Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + ((randMissions-1) * settings.bonusFactorPerExtraMission)))
                     });
-                    Fields.alreadyRaised.Add(contract, randMissions);
+                    Fields.alreadyRaised.Add(contract.GUID, randMissions);
                 }
             }
             catch (Exception e) {
@@ -85,9 +101,9 @@ namespace MultiMissions {
 
         static void Postfix(SGContractsListItem __instance, Contract contract) {
             try {
-                if (Fields.alreadyRaised[contract] != 1) {
+                if (Fields.alreadyRaised[contract.GUID] != 1) {
                     TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
-                    ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + Fields.alreadyRaised[contract] + " Missions)" });
+                    ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + Fields.alreadyRaised[contract.GUID] + " Missions)" });
                 }
             }
             catch (Exception e) {
@@ -101,16 +117,18 @@ namespace MultiMissions {
                 try {
                     Settings settings = Helper.LoadSettings();
                     Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
-                    if (Fields.missionNumber < Fields.alreadyRaised[c]) {
+                    if (Fields.missionNumber < Fields.alreadyRaised[c.GUID]) {
                         Contract newcon = GetNewContract(__instance.Sim, c);
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / Fields.alreadyRaised[c]) });
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / Fields.alreadyRaised[c.GUID]) });
                         newcon.Override.negotiatedSalary = c.PercentageContractValue;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
                         __instance.Sim.ForceTakeContract(newcon, false);
-                        Fields.alreadyRaised.Add(newcon, Fields.alreadyRaised[c]);
+                        newcon.SetGuid(Guid.NewGuid().ToString());
+                        Fields.alreadyRaised.Add(newcon.GUID, Fields.alreadyRaised[c.GUID]);
                         Fields.missionNumber++;
+                        Fields.alreadyRaised.Remove(c.GUID);
                     }
                     else {
                         Fields.missionNumber = 1;
@@ -280,7 +298,6 @@ namespace MultiMissions {
                                             }
                                             if (!SimGameState.MeetsRequirements(requirementDef, curTags, stats, null)) {
                                                 flag = false;
-                                                Logger.LogLine("MeetsRequirements break");
                                                 break;
                                             }
                                             k++;
