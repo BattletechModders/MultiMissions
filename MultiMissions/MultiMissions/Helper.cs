@@ -12,13 +12,15 @@ namespace MultiMissions {
         public int missionNumber;
         public int contractValue;
         public int originalInitValue;
+        public int currentMultiMissions;
         public Dictionary<string, int> alreadyRaised = new Dictionary<string, int>();
 
-        public SaveFields(int missionNumber, int contractValue, int originalInitValue, Dictionary<string, int> alreadyRaised) {
+        public SaveFields(int missionNumber, int contractValue, int originalInitValue, Dictionary<string, int> alreadyRaised, int currentMultiMissions) {
             this.missionNumber = missionNumber;
             this.contractValue = contractValue;
             this.originalInitValue = originalInitValue;
             this.alreadyRaised = alreadyRaised;
+            this.currentMultiMissions = currentMultiMissions;
         }
     }
 
@@ -42,7 +44,7 @@ namespace MultiMissions {
                 string filePath = "mods/MultiMissions/saves/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.missionNumber, Fields.contractValue, Fields.originalInitValue, Fields.alreadyRaised);
+                    SaveFields fields = new SaveFields(Fields.missionNumber, Fields.contractValue, Fields.originalInitValue, Fields.alreadyRaised, Fields.currentMultiMissions);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }

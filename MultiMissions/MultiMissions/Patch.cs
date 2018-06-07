@@ -39,6 +39,7 @@ namespace MultiMissions {
                     if (Fields.alreadyRaised.ContainsKey(con.GUID)) {
                         Fields.alreadyRaised.Remove(con.GUID);
                     }
+                    Fields.currentMultiMissions = 0;
                 }
             }
             catch (Exception e) {
@@ -87,10 +88,14 @@ namespace MultiMissions {
                     Settings settings = Helper.LoadSettings();
                     Thread.Sleep(20);
                     System.Random rnd = new System.Random();
-                    int randMissions = rnd.Next(1, settings.maxNumberOfMissions + 1);
-                    ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
-                        Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + ((randMissions-1) * settings.bonusFactorPerExtraMission)))
-                    });
+                    int randMissions = 1;
+                    if (Fields.currentMultiMissions <= settings.maxMultiMissions) {
+                        randMissions = rnd.Next(1, settings.maxNumberOfMissions + 1);
+                        ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
+                            Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + ((randMissions-1) * settings.bonusFactorPerExtraMission)))
+                        });
+                        Fields.currentMultiMissions++;
+                    }
                     Fields.alreadyRaised.Add(contract.GUID, randMissions);
                 }
             }
