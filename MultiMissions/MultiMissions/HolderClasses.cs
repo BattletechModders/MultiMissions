@@ -10,6 +10,7 @@ namespace MultiMissions {
     }
     
     public static class Fields {
+        public static float previousMoneyPercentage = 0;
         public static int missionNumber = 1;
         public static int contractValue = 0;
         public static int originalInitValue = 0;

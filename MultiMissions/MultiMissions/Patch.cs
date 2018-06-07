@@ -69,6 +69,7 @@ namespace MultiMissions {
         static void Prefix(Contract __instance) {
             try {
                 ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / Fields.alreadyRaised[__instance.GUID]) });
+                Fields.previousMoneyPercentage = __instance.PercentageContractValue;
                 ReflectionHelper.InvokePrivateMethode(__instance, "set_PercentageContractValue", new object[] { 1f });
             }
             catch (Exception e) {
@@ -127,7 +128,7 @@ namespace MultiMissions {
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
                         ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / Fields.alreadyRaised[c.GUID]) });
-                        newcon.Override.negotiatedSalary = c.PercentageContractValue;
+                        newcon.Override.negotiatedSalary = Fields.previousMoneyPercentage;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
                         __instance.Sim.ForceTakeContract(newcon, false);
                         newcon.SetGuid(Guid.NewGuid().ToString());
