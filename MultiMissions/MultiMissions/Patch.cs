@@ -90,8 +90,9 @@ namespace MultiMissions {
                     Thread.Sleep(20);
                     System.Random rnd = new System.Random();
                     int randMissions = 1;
-                    if (Fields.currentMultiMissions <= settings.maxMultiMissions) {
-                        randMissions = rnd.Next(1, settings.maxNumberOfMissions + 1);
+                    if (Fields.currentMultiMissions <= settings.maxMultiMissions) {                   
+                        randMissions = rnd.Next(2, settings.maxNumberOfMissions + 1);
+                        contract.Override.difficultyUIModifier += randMissions - 1;
                         ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
                             Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + ((randMissions-1) * settings.bonusFactorPerExtraMission)))
                         });
