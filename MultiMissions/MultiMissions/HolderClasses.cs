@@ -4,16 +4,13 @@ using System.Collections.Generic;
 
 namespace MultiMissions {
     public class Settings {
-        public int maxNumberOfMissions = 2;
+        public int maxNumberOfMissions = 3;
         public float bonusFactorPerExtraMission = 0.1f;
         public int maxMultiMissions = 3;
     }
     
     public static class Fields {
-        public static float previousMoneyPercentage = 0;
         public static int missionNumber = 1;
-        public static int contractValue = 0;
-        public static int originalInitValue = 0;
         public static int currentMultiMissions = 0;
         public static Dictionary<string, int> alreadyRaised = new Dictionary<string, int>();
     }

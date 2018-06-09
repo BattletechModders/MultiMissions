@@ -48,14 +48,16 @@ namespace MultiMissions {
         }
     }
 
-    [HarmonyPatch(typeof(Contract), "SetNegotiatedValues")]
-    public static class Contract_SetNegotiatedValues_Patch {
+    [HarmonyPatch(typeof(AAR_ContractObjectivesWidget), "FillInObjectives")]
+    public static class AAR_ContractObjectivesWidget_FillInObjectives {
 
-        static void Postfix(Contract __instance) {
+        static void Postfix(AAR_ContractObjectivesWidget __instance) {
             try {
-                if (Fields.missionNumber == 1) {
-                    Fields.originalInitValue = Mathf.RoundToInt(__instance.InitialContractValue);
-                    Fields.contractValue = Mathf.RoundToInt(Fields.originalInitValue * __instance.PercentageContractValue);
+                Contract contract = (Contract)ReflectionHelper.GetPrivateField(__instance, "theContract");
+                if (contract.TheMissionResult == MissionResult.Victory && Fields.missionNumber > 1) {
+                    Settings settings = Helper.LoadSettings();
+                    MissionObjectiveResult missionObjectiveResult = new MissionObjectiveResult("Multi Mission Bonus: " + settings.bonusFactorPerExtraMission * 100+"%", "7facf07a-626d-4a3b-a1ec-b29a35ff1ac0", false, true, ObjectiveStatus.Succeeded, true);
+                    ReflectionHelper.InvokePrivateMethode(__instance, "AddObjective", new object[] { missionObjectiveResult });
                 }
             }
             catch (Exception e) {
@@ -63,14 +65,15 @@ namespace MultiMissions {
             }
         }
     }
-    [HarmonyPatch(typeof(Contract), "CompleteContract")]
-    public static class Contract_CompleteContract_Patch {
 
-        static void Prefix(Contract __instance) {
+    [HarmonyPatch(typeof(Contract), "CompleteContract")]
+    public static class Contract_CompleteContract {
+
+        static void Postfix(Contract __instance) {
             try {
-                ReflectionHelper.InvokePrivateMethode(__instance, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.contractValue / Fields.alreadyRaised[__instance.GUID]) });
-                Fields.previousMoneyPercentage = __instance.PercentageContractValue;
-                ReflectionHelper.InvokePrivateMethode(__instance, "set_PercentageContractValue", new object[] { 1f });
+                Settings settings = Helper.LoadSettings();
+                int newMoneyResults = Mathf.FloorToInt(__instance.MoneyResults * (1 + settings.bonusFactorPerExtraMission));
+                ReflectionHelper.InvokePrivateMethode(__instance, "set_MoneyResults", new object[] { newMoneyResults });
             }
             catch (Exception e) {
                 Logger.LogError(e);
@@ -90,12 +93,9 @@ namespace MultiMissions {
                     Thread.Sleep(20);
                     System.Random rnd = new System.Random();
                     int randMissions = 1;
-                    if (Fields.currentMultiMissions <= settings.maxMultiMissions) {                   
+                    if (Fields.currentMultiMissions < settings.maxMultiMissions) {
                         randMissions = rnd.Next(2, settings.maxNumberOfMissions + 1);
                         contract.Override.difficultyUIModifier += randMissions - 1;
-                        ReflectionHelper.InvokePrivateMethode(contract, "set_InitialContractValue", new object[] {
-                            Mathf.RoundToInt(contract.InitialContractValue * randMissions * (1 + ((randMissions-1) * settings.bonusFactorPerExtraMission)))
-                        });
                         Fields.currentMultiMissions++;
                     }
                     Fields.alreadyRaised.Add(contract.GUID, randMissions);
@@ -110,7 +110,12 @@ namespace MultiMissions {
             try {
                 if (Fields.alreadyRaised[contract.GUID] != 1) {
                     TextMeshProUGUI contractName = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractName");
+                    TextMeshProUGUI contractMaxPay = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractMaxPay");
+                    TextMeshProUGUI contractMaxSalvage = (TextMeshProUGUI)ReflectionHelper.GetPrivateField(__instance, "contractMaxSalvage");
+
                     ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractName, contract.Override.contractName + " (" + Fields.alreadyRaised[contract.GUID] + " Missions)" });
+                    ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractMaxPay, contractMaxPay.text + " (x" + Fields.alreadyRaised[contract.GUID] + ")" });
+                    ReflectionHelper.InvokePrivateMethode(__instance, "setFieldText", new object[] { contractMaxSalvage, contractMaxSalvage.text + " (x" + Fields.alreadyRaised[contract.GUID] + ")" });
                 }
             }
             catch (Exception e) {
@@ -128,8 +133,9 @@ namespace MultiMissions {
                         Contract newcon = GetNewContract(__instance.Sim, c);
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { Mathf.RoundToInt(Fields.originalInitValue / Fields.alreadyRaised[c.GUID]) });
-                        newcon.Override.negotiatedSalary = Fields.previousMoneyPercentage;
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { c.InitialContractValue });
+                        ReflectionHelper.InvokePrivateMethode(newcon, "set_SalvagePotential", new object[] { c.SalvagePotential });
+                        newcon.Override.negotiatedSalary = c.PercentageContractValue;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
                         __instance.Sim.ForceTakeContract(newcon, false);
                         newcon.SetGuid(Guid.NewGuid().ToString());
