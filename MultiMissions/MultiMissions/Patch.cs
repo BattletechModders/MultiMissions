@@ -137,6 +137,9 @@ namespace MultiMissions {
                         ReflectionHelper.InvokePrivateMethode(newcon, "set_SalvagePotential", new object[] { c.SalvagePotential });
                         newcon.Override.negotiatedSalary = c.PercentageContractValue;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
+                        newcon.Override.targetTeam = c.Override.targetTeam;
+                        newcon.Override.targetsAllyTeam = c.Override.targetsAllyTeam;
+                        newcon.Override.employerTeam = c.Override.employerTeam;
                         __instance.Sim.ForceTakeContract(newcon, false);
                         newcon.SetGuid(Guid.NewGuid().ToString());
                         Fields.alreadyRaised.Add(newcon.GUID, Fields.alreadyRaised[c.GUID]);
