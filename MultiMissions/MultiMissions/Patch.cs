@@ -59,7 +59,7 @@ namespace MultiMissions {
                 Contract contract = (Contract)ReflectionHelper.GetPrivateField(__instance, "theContract");
                 if (contract.TheMissionResult == MissionResult.Victory && Fields.missionNumber > 1) {
                     Settings settings = Helper.LoadSettings();
-                    MissionObjectiveResult missionObjectiveResult = new MissionObjectiveResult("Multi Mission Bonus: " + settings.bonusFactorPerExtraMission * 100+"%", "7facf07a-626d-4a3b-a1ec-b29a35ff1ac0", false, true, ObjectiveStatus.Succeeded, true);
+                    MissionObjectiveResult missionObjectiveResult = new MissionObjectiveResult("Multi Mission Bonus: " + settings.bonusFactorPerExtraMission * 100 + "%", "7facf07a-626d-4a3b-a1ec-b29a35ff1ac0", false, true, ObjectiveStatus.Succeeded, true);
                     ReflectionHelper.InvokePrivateMethode(__instance, "AddObjective", new object[] { missionObjectiveResult });
                 }
             }
@@ -125,36 +125,37 @@ namespace MultiMissions {
                 Logger.LogError(e);
             }
         }
+    }
 
-        [HarmonyPatch(typeof(AAR_SalvageScreen), "OnCompleted")]
-        public static class AAR_SalvageScreen_OnCompleted_Patch {
-            static void Postfix(AAR_SalvageScreen __instance) {
-                try {
-                    Settings settings = Helper.LoadSettings();
-                    Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
-                    if (Fields.missionNumber < Fields.alreadyRaised[c.GUID]) {
-                        Contract newcon = GetNewContract(__instance.Sim, c, c.Override.employerTeam.faction, c.Override.targetTeam.faction);
-                        newcon.Override.disableNegotations = true;
-                        newcon.Override.disableCancelButton = true;
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { c.InitialContractValue });
-                        ReflectionHelper.InvokePrivateMethode(newcon, "set_SalvagePotential", new object[] { c.SalvagePotential });
-                        newcon.Override.negotiatedSalary = c.PercentageContractValue;
-                        newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
-                        __instance.Sim.ForceTakeContract(newcon, false);
-                        newcon.SetGuid(Guid.NewGuid().ToString());
-                        Fields.alreadyRaised.Add(newcon.GUID, Fields.alreadyRaised[c.GUID]);
-                        Fields.missionNumber++;
-                        Fields.alreadyRaised.Remove(c.GUID);
-                    }
-                    else {
-                        Fields.missionNumber = 1;
-                    }
+    [HarmonyPatch(typeof(AAR_SalvageScreen), "OnCompleted")]
+    public static class AAR_SalvageScreen_OnCompleted_Patch {
+        static void Postfix(AAR_SalvageScreen __instance) {
+            try {
+                Settings settings = Helper.LoadSettings();
+                Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
+                if (Fields.missionNumber < Fields.alreadyRaised[c.GUID]) {
+                    Contract newcon = GetNewContract(__instance.Sim, c, c.Override.employerTeam.faction, c.Override.targetTeam.faction);
+                    newcon.Override.disableNegotations = true;
+                    newcon.Override.disableCancelButton = true;
+                    ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { c.InitialContractValue });
+                    ReflectionHelper.InvokePrivateMethode(newcon, "set_SalvagePotential", new object[] { c.SalvagePotential });
+                    newcon.Override.negotiatedSalary = c.PercentageContractValue;
+                    newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
+                    __instance.Sim.ForceTakeContract(newcon, false);
+                    newcon.SetGuid(Guid.NewGuid().ToString());
+                    Fields.alreadyRaised.Add(newcon.GUID, Fields.alreadyRaised[c.GUID]);
+                    Fields.missionNumber++;
+                    Fields.alreadyRaised.Remove(c.GUID);
                 }
-                catch (Exception e) {
-                    Logger.LogError(e);
+                else {
+                    Fields.missionNumber = 1;
                 }
             }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
         }
+
         private static Contract GetNewContract(SimGameState Sim, Contract oldcontract, Faction emp, Faction targ) {
             ContractDifficulty minDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });
             ContractDifficulty maxDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });
