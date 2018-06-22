@@ -36,6 +36,9 @@ namespace MultiMissions {
         static void Prefix(StarSystem __instance) {
             try {
                 foreach (Contract con in __instance.SystemContracts) {
+                    if (con.GUID == null) {
+                        con.SetGuid(Guid.NewGuid().ToString());
+                    }
                     if (Fields.alreadyRaised.ContainsKey(con.GUID)) {
                         Fields.alreadyRaised.Remove(con.GUID);
                     }
@@ -130,16 +133,13 @@ namespace MultiMissions {
                     Settings settings = Helper.LoadSettings();
                     Contract c = (Contract)ReflectionHelper.GetPrivateField(__instance, "contract");
                     if (Fields.missionNumber < Fields.alreadyRaised[c.GUID]) {
-                        Contract newcon = GetNewContract(__instance.Sim, c);
+                        Contract newcon = GetNewContract(__instance.Sim, c, c.Override.employerTeam.faction, c.Override.targetTeam.faction);
                         newcon.Override.disableNegotations = true;
                         newcon.Override.disableCancelButton = true;
                         ReflectionHelper.InvokePrivateMethode(newcon, "set_InitialContractValue", new object[] { c.InitialContractValue });
                         ReflectionHelper.InvokePrivateMethode(newcon, "set_SalvagePotential", new object[] { c.SalvagePotential });
                         newcon.Override.negotiatedSalary = c.PercentageContractValue;
                         newcon.Override.negotiatedSalvage = c.PercentageContractSalvage;
-                        newcon.Override.targetTeam = c.Override.targetTeam;
-                        newcon.Override.targetsAllyTeam = c.Override.targetsAllyTeam;
-                        newcon.Override.employerTeam = c.Override.employerTeam;
                         __instance.Sim.ForceTakeContract(newcon, false);
                         newcon.SetGuid(Guid.NewGuid().ToString());
                         Fields.alreadyRaised.Add(newcon.GUID, Fields.alreadyRaised[c.GUID]);
@@ -155,7 +155,7 @@ namespace MultiMissions {
                 }
             }
         }
-        private static Contract GetNewContract(SimGameState Sim, Contract oldcontract) {
+        private static Contract GetNewContract(SimGameState Sim, Contract oldcontract, Faction emp, Faction targ) {
             ContractDifficulty minDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });
             ContractDifficulty maxDiffClamped = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { oldcontract.Difficulty });
             StarSystem system;
@@ -199,36 +199,6 @@ namespace MultiMissions {
                 contractMaps.Reset(false);
                 WeightedList<Faction> validEmployers = new WeightedList<Faction>(WeightedListType.SimpleRandom, null, null, 0);
                 Dictionary<Faction, WeightedList<Faction>> validTargets = new Dictionary<Faction, WeightedList<Faction>>();
-
-                Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)ReflectionHelper.GetPrivateField(Sim, "factions");
-
-                foreach (Faction faction in system.Def.ContractEmployers) {
-                    foreach (Faction faction2 in factions[faction].Enemies) {
-                        if (system.Def.ContractTargets.Contains(faction2)) {
-                            if (!validTargets.ContainsKey(faction)) {
-                                validTargets.Add(faction, new WeightedList<Faction>(WeightedListType.PureRandom, null, null, 0));
-                            }
-                            validTargets[faction].Add(faction2, 0);
-                        }
-                    }
-                    if (validTargets.ContainsKey(faction)) {
-                        validTargets[faction].Reset(false);
-                        validEmployers.Add(faction, 0);
-                    }
-                }
-                validEmployers.Reset(false);
-
-                if (validEmployers.Count <= 0 || validTargets.Count <= 0) {
-                    Logger.LogLine(string.Format("Cannot find any valid employers or targets for system {0}", system));
-                }
-                if (validTargets.Count == 0 || validEmployers.Count == 0) {
-                    Logger.LogLine(string.Format("There are no valid employers or employers for the system of {0}. Num valid employers: {1}", system.Name, validEmployers.Count));
-                    foreach (Faction faction3 in validTargets.Keys) {
-                        Logger.LogLine(string.Format("--- Targets for {0}: {1}", faction3, validTargets[faction3].Count));
-                    }
-
-                    break;
-                }
 
                 int i = debugCount;
                 debugCount = i + 1;
@@ -276,10 +246,9 @@ namespace MultiMissions {
                                     ContractDifficulty difficultyEnumFromValue = (ContractDifficulty)ReflectionHelper.InvokePrivateMethode(Sim, "GetDifficultyEnumFromValue", new object[] { contractOverride2.difficulty });
                                     Faction employer2 = Faction.INVALID_UNSET;
                                     Faction target2 = Faction.INVALID_UNSET;
-                                    object[] args = new object[] { system, validEmployers, validTargets, contractOverride2.requirementList, employer2, target2 };
-                                    if (difficultyEnumFromValue >= minDiffClamped && difficultyEnumFromValue <= maxDiffClamped && (bool)ReflectionHelper.InvokePrivateMethode(Sim, "GetValidFaction", args)) {
-                                        employer2 = (Faction)args[4];
-                                        target2 = (Faction)args[5];
+                                    if (difficultyEnumFromValue >= minDiffClamped && difficultyEnumFromValue <= maxDiffClamped) {
+                                        employer2 = emp;
+                                        target2 = targ;
                                         int difficulty = Sim.NetworkRandom.Int(oldcontract.Difficulty, oldcontract.Difficulty + 1);
                                         system.SetCurrentContractFactions(employer2, target2);
                                         int k = 0;
